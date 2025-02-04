@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多功能秒表 - 響應式與情境切換版</title>
+  <link rel="manifest" href="manifest.json">
+  <!-- 引入 SheetJS (xlsx) CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- 引入 Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* 基本與主題設定 */
+    :root {
+      --bg-color: #e9eff5;
+      --container-bg: #ffffff;
+      --text-color: #333333;
+      --primary-color: #007bff;
+      --primary-hover: #0056b3;
+      --accent-color: #28a745;
+      --shadow: 0 4px 12px rgba(0,0,0,0.1);
+      --border-radius: 8px;
+    }
+    body.dark {
+      --bg-color: #2c2c2c;
+      --container-bg: #3a3a3a;
+      --text-color: #e9eff5;
+      --primary-color: #1e90ff;
+      --primary-hover: #1c86ee;
+      --accent-color: #28a745;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+    header, footer {
+      background: var(--container-bg);
+      padding: 20px;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      color: var(--primary-color);
+    }
+    header .theme-switcher {
+      margin-top: 10px;
+    }
+    main {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+    /* 多功能計時器區塊 */
+    #multiTimerSection {
+      background: var(--container-bg);
+      padding: 20px;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+    }
+    #multiTimerSection h2 {
+      margin-top: 0;
+      text-align: center;
+      color: var(--primary-color);
+    }
+    /* 總控制區 */
+    #masterControls {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    #masterControls button {
+      margin: 0 8px;
+      padding: 10px 16px;
+      font-weight: bold;
+      border-radius: var(--border-radius);
+    }
+    #addTimer {
+      display: block;
+      margin: 0 auto 15px auto;
+      padding: 12px 20px;
+      font-size: 1.1rem;
+      border-radius: var(--border-radius);
+    }
+    /* 計時器容器，自適應排列 */
+    #timersContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    /* 卡片進入動畫 */
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .multi-timer {
+      background: var(--container-bg);
+      border-radius: var(--border-radius);
+      padding: 15px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      animation: slideIn 0.5s ease;
+    }
+    .multi-timer h3 {
+      margin: 0;
+      text-align: center;
+      color: var(--primary-color);
+      font-size: 1.3rem;
+    }
+    /* 計時器名稱設定 */
+    .timer-name {
+      text-align: center;
+    }
+    .timer-name input,
+    .timer-name select {
+      padding: 6px;
+      font-size: 0.95rem;
+      border: 1px solid #ccc;
+      border-radius: var(--border-radius);
+      margin: 0 5px;
+    }
+    .multi-timer .time {
+      font-size: 2rem;
+      text-align: center;
+      font-weight: bold;
+      color: var(--accent-color);
+    }
+    .lap-counter {
+      text-align: center;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+    /* 新增數據統計區 */
+    .stats {
+      font-size: 0.95rem;
+      color: var(--text-color);
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: var(--border-radius);
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    /* 新增排名區 */
+    .ranking {
+      font-size: 0.95rem;
+      color: var(--text-color);
+      background: #f1f3f5;
+      padding: 6px;
+      border-radius: var(--border-radius);
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    .multi-timer div[style*="text-align: center;"] {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .multi-timer button {
+      padding: 8px 14px;
+      border-radius: var(--border-radius);
+      flex: 1 1 auto;
+      min-width: 70px;
+    }
+    .multi-timer ul.laps {
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 0;
+      margin: 0;
+      border-top: 1px solid #ddd;
+    }
+    .multi-timer ul.laps li {
+      padding: 6px;
+      border-bottom: 1px solid #eee;
+      font-size: 0.95rem;
+    }
+    .multi-timer h4 {
+      text-align: center;
+      margin: 10px 0 0 0;
+      font-size: 1.1rem;
+      color: var(--primary-color);
+    }
+    /* 刪除按鈕 */
+    .deleteTimer {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #dc3545;
+      border: none;
+      color: #fff;
+      padding: 4px 8px;
+      font-size: 0.85rem;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+    }
+    .deleteTimer:hover {
+      background: #c82333;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 0.9rem;
+      color: var(--text-color);
+    }
+    /* 響應式調整 */
+    @media (max-width: 767px) {
+      header h1 {
+        font-size: 2rem;
+      }
+      #masterControls button, #addTimer {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>多功能秒表</h1>
+    <div class="theme-switcher">
+      主題切換:
+      <select id="themeSelect">
+        <option value="light">亮色主題</option>
+        <option value="dark">暗色主題</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <section id="multiTimerSection">
+      <h2>多功能計時器</h2>
+      <!-- 總控制區 -->
+      <div id="masterControls">
+        <button id="masterStart">啟動</button>
+        <button id="masterPause">暫停</button>
+        <button id="masterReset">重置</button>
+        <button id="exportAllData">導出數據</button>
+        <button id="toggleVisibility">隱藏</button>
+      </div>
+      <button id="addTimer">新增計時器</button>
+      <div id="timersContainer"></div>
+    </section>
+  </main>
+
+  <footer>
+    &copy; 2025 多功能秒表
+  </footer>
+
+  <audio id="alertSound" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
+  
+  <script>
+    /* ========== 多功能計時器功能 ========== */
+    document.getElementById('addTimer').addEventListener('click', function() {
+      const timerDiv = document.createElement('div');
+      timerDiv.className = 'multi-timer';
+      timerDiv.innerHTML = `
+        <button class="deleteTimer">刪除</button>
+        <h3>計時器</h3>
+        <div class="timer-name">
+          <label>名稱:</label>
+          <input type="text" class="timerNameInput" placeholder="請輸入計時器名稱">
+          <select class="timerNameSelect">
+            <option value="">選擇名稱</option>
+            <option value="方君凜">方君凜</option>
+            <option value="王禹昊">王禹昊</option>
+            <option value="古澔">古澔</option>
+            <option value="江勇鈞">江勇鈞</option>
+            <option value="何丞逸">何丞逸</option>
+            <option value="宋承偉">宋承偉</option>
+            <option value="杜誠翊">杜誠翊</option>
+            <option value="夏培恩">夏培恩</option>
+            <option value="張宇恩">張宇恩</option>
+            <option value="郭冠麟">郭冠麟</option>
+            <option value="陳祈安">陳祈安</option>
+            <option value="黃浩綸">黃浩綸</option>
+            <option value="詹霈成">詹霈成</option>
+            <option value="詹勳共">詹勳共</option>
+            <option value="劉晉瑋">劉晉瑋</option>
+            <option value="鄭頡菲">鄭頡菲</option>
+          </select>
+        </div>
+        <div class="time">00:00.000</div>
+        <div class="lap-counter">圈速總數: 0</div>
+        <div class="stats">統計：無數據</div>
+        <!-- 新增排名區 -->
+        <div class="ranking">排名：無數據</div>
+        <div style="text-align: center;">
+          <button class="startPause">開始</button>
+          <button class="lap" disabled>圈速</button>
+          <button class="reset" disabled>重置</button>
+        </div>
+        <ul class="laps"></ul>
+        <h4>圈速圖表（單圈時間）</h4>
+        <canvas class="multiLapChart"></canvas>
+      `;
+      document.getElementById('timersContainer').appendChild(timerDiv);
+
+      // 刪除按鈕
+      const deleteBtn = timerDiv.querySelector('.deleteTimer');
+      deleteBtn.addEventListener('click', function() {
+        if(confirm("確定要刪除此計時器嗎？")) {
+          timerDiv.remove();
+        }
+      });
+
+      // 名稱唯一性檢查
+      const nameSelect = timerDiv.querySelector('.timerNameSelect');
+      const nameInput = timerDiv.querySelector('.timerNameInput');
+      nameSelect.addEventListener('change', function() {
+        if(this.value) {
+          nameInput.value = this.value;
+          validateUniqueName(nameInput);
+        }
+      });
+      nameInput.addEventListener('blur', function() {
+        validateUniqueName(nameInput);
+      });
+
+      const timeDisplay = timerDiv.querySelector('.time');
+      const lapCounter = timerDiv.querySelector('.lap-counter');
+      const statsDiv = timerDiv.querySelector('.stats');
+      const rankingDiv = timerDiv.querySelector('.ranking');
+      const btnStartPause = timerDiv.querySelector('.startPause');
+      const btnLap = timerDiv.querySelector('.lap');
+      const btnReset = timerDiv.querySelector('.reset');
+      const lapList = timerDiv.querySelector('.laps');
+      const multiLapCanvas = timerDiv.querySelector('.multiLapChart');
+
+      let startTimeMulti = 0;
+      let elapsedTimeMulti = 0;
+      let runningMulti = false;
+      let timerIntervalMulti;
+      let multiLapTimes = [];
+      let multiLapChart = null;
+      let previousCumulative = 0;
+
+      function updateMultiLapChart() {
+        const lapNumbers = multiLapTimes.map((_, index) => index + 1);
+        const lapData = multiLapTimes.map(time => (time / 1000).toFixed(3));
+        if(multiLapChart) {
+          multiLapChart.data.labels = lapNumbers;
+          multiLapChart.data.datasets[0].data = lapData;
+          multiLapChart.update();
+        } else {
+          multiLapChart = new Chart(multiLapCanvas.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: lapNumbers,
+              datasets: [{
+                label: '單圈時間 (秒)',
+                data: lapData,
+                borderColor: 'rgba(153, 102, 255, 1)',
+                backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                fill: true,
+              }]
+            },
+            options: { scales: { y: { beginAtZero: true } } }
+          });
+        }
+      }
+      
+      function updateStats() {
+        if(multiLapTimes.length === 0) {
+          statsDiv.textContent = "統計：無數據";
+          return;
+        }
+        const totalLaps = multiLapTimes.length;
+        const totalTime = previousCumulative;
+        const avgTime = totalTime / totalLaps;
+        const fastest = Math.min(...multiLapTimes);
+        const slowest = Math.max(...multiLapTimes);
+        statsDiv.innerHTML = `
+          統計：<br>
+          總圈數：${totalLaps}<br>
+          累計時間：${formatTime(totalTime)}<br>
+          平均單圈：${formatTime(avgTime)}<br>
+          最快圈速：${formatTime(fastest)}<br>
+          最慢圈速：${formatTime(slowest)}
+        `;
+      }
+      
+      function updateRanking() {
+        // 建立 lapData 陣列，包含每一圈的序號與時間
+        let lapData = [];
+        for(let i = 0; i < multiLapTimes.length; i++){
+          lapData.push({ lap: i + 1, time: multiLapTimes[i] });
+        }
+        // 依圈速時間排序（數值較小代表速度較快）
+        let sorted = [...lapData].sort((a, b) => a.time - b.time);
+        // 建立 mapping，記錄每一圈的名次
+        let rankingMap = {};
+        sorted.forEach((item, index) => {
+          rankingMap[item.lap] = index + 1;
+        });
+        // 更新 rankingDiv 內容
+        let rankingText = "排名：";
+        lapData.forEach(item => {
+          rankingText += `第${item.lap}圈：${rankingMap[item.lap]}名  `;
+        });
+        rankingDiv.textContent = rankingText;
+      }
+
+      btnStartPause.addEventListener('click', function() {
+        if(!runningMulti) {
+          startTimeMulti = performance.now();
+          timerIntervalMulti = requestAnimationFrame(function tick() {
+            const diff = performance.now() - startTimeMulti + elapsedTimeMulti;
+            timeDisplay.textContent = formatTime(diff);
+            timerIntervalMulti = requestAnimationFrame(tick);
+          });
+          runningMulti = true;
+          btnStartPause.textContent = '暫停';
+          btnReset.disabled = false;
+          btnLap.disabled = false;
+        } else {
+          // 暫停時生成一筆新的記錄
+          cancelAnimationFrame(timerIntervalMulti);
+          elapsedTimeMulti += performance.now() - startTimeMulti;
+          runningMulti = false;
+          btnStartPause.textContent = '開始';
+          let currentCumulative = elapsedTimeMulti;
+          let individualLap = currentCumulative - previousCumulative;
+          const li = document.createElement('li');
+          li.setAttribute('data-cumulative', currentCumulative);
+          li.textContent = "累計: " + formatTime(currentCumulative) + " (單圈: " + formatTime(individualLap) + ")";
+          lapList.appendChild(li);
+          multiLapTimes.push(individualLap);
+          previousCumulative = currentCumulative;
+          updateMultiLapChart();
+          updateStats();
+          lapCounter.textContent = "圈速總數: " + lapList.childElementCount;
+          updateRanking();
+        }
+      });
+
+      btnReset.addEventListener('click', function() {
+        cancelAnimationFrame(timerIntervalMulti);
+        startTimeMulti = 0;
+        elapsedTimeMulti = 0;
+        runningMulti = false;
+        timeDisplay.textContent = '00:00.000';
+        btnStartPause.textContent = '開始';
+        btnReset.disabled = true;
+        btnLap.disabled = true;
+        lapList.innerHTML = '';
+        multiLapTimes = [];
+        previousCumulative = 0;
+        lapCounter.textContent = "圈速總數: 0";
+        statsDiv.textContent = "統計：無數據";
+        rankingDiv.textContent = "排名：無數據";
+        if(multiLapChart) {
+          multiLapChart.destroy();
+          multiLapChart = null;
+        }
+      });
+
+      btnLap.addEventListener('click', function() {
+        let currentCumulative = runningMulti ? performance.now() - startTimeMulti + elapsedTimeMulti : elapsedTimeMulti;
+        let individualLap = currentCumulative - previousCumulative;
+        previousCumulative = currentCumulative;
+        const li = document.createElement('li');
+        li.setAttribute('data-cumulative', currentCumulative);
+        li.textContent = "累計: " + formatTime(currentCumulative) + " (單圈: " + formatTime(individualLap) + ")";
+        lapList.appendChild(li);
+        multiLapTimes.push(individualLap);
+        updateMultiLapChart();
+        lapCounter.textContent = "圈速總數: " + lapList.childElementCount;
+        updateStats();
+        updateRanking();
+      });
+    });
+
+    // 驗證計時器名稱唯一性
+    function validateUniqueName(inputElem) {
+      const currentName = inputElem.value.trim();
+      if(!currentName) return;
+      const allInputs = document.querySelectorAll('.timerNameInput');
+      let count = 0;
+      allInputs.forEach(input => {
+        if(input !== inputElem && input.value.trim() === currentName) {
+          count++;
+        }
+      });
+      if(count > 0) {
+        alert("計時器名稱必須唯一，該名稱已存在！");
+        inputElem.value = "";
+      }
+    }
+
+    /* ========== 總開關功能（多功能計時器） ========== */
+    const masterStart = document.getElementById('masterStart');
+    const masterPause = document.getElementById('masterPause');
+    const masterReset = document.getElementById('masterReset');
+
+    masterStart.addEventListener('click', function() {
+      const allStartPauseButtons = document.querySelectorAll('#timersContainer .multi-timer .startPause');
+      allStartPauseButtons.forEach(btn => {
+        if(btn.textContent === '開始') {
+          btn.click();
+        }
+      });
+    });
+
+    masterPause.addEventListener('click', function() {
+      const allStartPauseButtons = document.querySelectorAll('#timersContainer .multi-timer .startPause');
+      allStartPauseButtons.forEach(btn => {
+        if(btn.textContent === '暫停') {
+          btn.click();
+        }
+      });
+    });
+
+    masterReset.addEventListener('click', function() {
+      const allResetButtons = document.querySelectorAll('#timersContainer .multi-timer .reset');
+      allResetButtons.forEach(btn => {
+        btn.click();
+      });
+    });
+
+    /* ========== 導出所有計時器數據 功能 ========== */
+    document.getElementById('exportAllData').addEventListener('click', function() {
+      const timerElements = document.querySelectorAll('#timersContainer .multi-timer');
+      const exportData = [];
+      exportData.push(["計時器序號", "計時器名稱", "圈數", "累計時間", "單圈時間"]);
+      
+      timerElements.forEach((timerEl, timerIndex) => {
+        const timerName = timerEl.querySelector('.timerNameInput')?.value || "";
+        const lapItems = timerEl.querySelectorAll('.laps li');
+        lapItems.forEach((li, lapIndex) => {
+          const text = li.textContent;
+          const match = text.match(/累計:\s*([\d:\.]+)\s*\(單圈:\s*([\d:\.]+)\)/);
+          if(match) {
+            const cumulative = match[1];
+            const lapTime = match[2];
+            exportData.push([timerIndex + 1, timerName, lapIndex + 1, cumulative, lapTime]);
+          } else {
+            exportData.push([timerIndex + 1, timerName, lapIndex + 1, text, ""]);
+          }
+        });
+      });
+      
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(exportData);
+      XLSX.utils.book_append_sheet(wb, ws, "MultiTimerData");
+      XLSX.writeFile(wb, "MultiTimerData.xlsx");
+    });
+
+    /* ========== 共用函式 ========== */
+    function formatTime(time) {
+      let ms = parseInt(time % 1000);
+      let sec = parseInt((time / 1000) % 60);
+      let min = parseInt(time / 60000);
+      ms = ms.toString().padStart(3, '0');
+      sec = sec.toString().padStart(2, '0');
+      min = min.toString().padStart(2, '0');
+      return `${min}:${sec}.${ms}`;
+    }
+
+    /* ========== 主題切換功能 ========== */
+    const themeSelect = document.getElementById('themeSelect');
+    themeSelect.addEventListener('change', function() {
+      if(this.value === 'dark') {
+        document.body.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+      }
+    });
+
+    /* ========== 隱藏/開啟統計與圖表功能 ========== */
+    const toggleVisibilityBtn = document.getElementById('toggleVisibility');
+    let isHidden = false;
+    toggleVisibilityBtn.addEventListener('click', function() {
+      // 隱藏/開啟統計區 (.stats)、圈速列表 (.laps) 與圖表 (canvas.multiLapChart)
+      const statsElems = document.querySelectorAll('.multi-timer .stats');
+      const lapListElems = document.querySelectorAll('.multi-timer .laps');
+      const canvasElems = document.querySelectorAll('.multi-timer .multiLapChart');
+      
+      if(!isHidden) {
+        statsElems.forEach(elem => elem.style.display = 'none');
+        lapListElems.forEach(elem => elem.style.display = 'none');
+        canvasElems.forEach(elem => elem.style.display = 'none');
+        toggleVisibilityBtn.textContent = "開啟";
+        isHidden = true;
+      } else {
+        statsElems.forEach(elem => elem.style.display = 'block');
+        lapListElems.forEach(elem => elem.style.display = 'block');
+        canvasElems.forEach(elem => elem.style.display = 'block');
+        toggleVisibilityBtn.textContent = "隱藏";
+        isHidden = false;
+      }
+    });
+
+    /* ========== PWA: Service Worker 註冊 ========== */
+    if('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').then(function(registration) {
+          console.log('Service Worker 註冊成功:', registration);
+        }).catch(function(err) {
+          console.log('Service Worker 註冊失敗:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

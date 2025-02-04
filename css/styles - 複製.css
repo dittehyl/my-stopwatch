@@ -1,0 +1,29 @@
+/* 桌面版 */
+@media (min-width: 1024px) {
+  body {
+    font-size: 1rem;
+  }
+  #timersContainer {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 平板版 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  body {
+    font-size: 0.95rem;
+  }
+  #timersContainer {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 手機版 */
+@media (max-width: 767px) {
+  body {
+    font-size: 0.9rem;
+  }
+  #timersContainer {
+    grid-template-columns: 1fr;
+  }
+}
